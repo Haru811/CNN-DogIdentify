@@ -1,0 +1,92 @@
+!pip install ultralytics
+
+# Tải dữ liệu dog-pose về thư mục Google Drive
+!wget -O /content/dog-pose.zip https://github.com/ultralytics/assets/releases/download/v0.0.0/dog-pose.zip
+
+# Giải nén tập dữ liệu
+import zipfile
+import os
+
+with zipfile.ZipFile('/content/dog-pose.zip', 'r') as zip_ref:
+    zip_ref.extractall('/content/dog-pose')
+
+# Lưu vào Google Drive (nếu đã gắn kết Google Drive)
+from google.colab import drive
+drive.mount('/content/drive')
+
+!cp -r /content/dog-pose /content/drive/MyDrive/
+from ultralytics import YOLO
+import shutil
+import os
+import glob
+
+# Gắn Google Drive
+from google.colab import drive
+drive.mount('/content/drive', force_remount=True)
+
+# Tạo thư mục trên Google Drive nếu chưa tồn tại
+drive_path = '/content/drive/MyDrive/dog-pose-checkpoints'
+os.makedirs(drive_path, exist_ok=True)
+
+# Tạo mô hình YOLO
+model = YOLO('/content/yolo11n-pose.pt')
+
+# Huấn luyện mô hình
+results = model.train(
+    data='/content/dog-pose/dog-pose/dog-pose.yaml',  # Đường dẫn đến YAML file
+    epochs=30,  # Số epoch huấn luyện
+    batch=16,  # Batch size
+    imgsz=640,  # Kích thước ảnh
+    project='dog-pose',  # Thư mục lưu kết quả
+    name='exp1',  # Tên lần huấn luyện
+)
+
+# Chỉ sao lưu checkpoint sau khi huấn luyện thành công
+try:
+    # Sao lưu checkpoint tốt nhất
+    checkpoint_path = '/content/dog-pose/exp1/weights/best.pt'
+    drive_checkpoint_path = f"{drive_path}/best.pt"
+
+    if os.path.exists(checkpoint_path):
+        shutil.copy(checkpoint_path, drive_checkpoint_path)
+        print(f"Checkpoint tốt nhất đã được lưu vào Google Drive: {drive_checkpoint_path}")
+    else:
+        print("Checkpoint tốt nhất không tìm thấy.")
+
+    # Sao lưu checkpoint theo từng epoch
+    epoch_checkpoints = sorted(glob.glob('/content/dog-pose/exp1/weights/epoch_*.pt'))
+    for checkpoint in epoch_checkpoints:
+        filename = os.path.basename(checkpoint)
+        drive_epoch_path = f"{drive_path}/{filename}"
+        shutil.copy(checkpoint, drive_epoch_path)
+        print(f"Checkpoint {filename} đã được lưu vào Google Drive: {drive_epoch_path}")
+except Exception as e:
+    print(f"Đã xảy ra lỗi khi lưu checkpoint vào Google Drive: {e}")
+
+
+!pip install ultralytics
+
+# import subprocess
+# # Thay thế lệnh hệ thống bằng subprocess để tránh lỗi UTF-8
+# subprocess.run(["pip", "install", "ultralytics"], check=True)
+
+from ultralytics import YOLO
+import matplotlib.pyplot as plt
+import cv2
+
+# Tải mô hình từ checkpoint tốt nhất
+model = YOLO('/content/drive/MyDrive/dog-pose-checkpoints/best.pt')  # Đường dẫn tới file checkpoint
+
+# Đường dẫn tới ảnh mới
+#image_path = '/content/drive/MyDrive/download.jpg'  # Thay bằng đường dẫn tới ảnh của bạn
+image_path = '/content/1.jpg'  # Thay bằng đường dẫn tới ảnh của bạn
+
+# Thực hiện detection
+results = model.predict(
+    source=image_path,  # Đường dẫn ảnh
+    save=True,  # Lưu kết quả vào thư mục
+    imgsz=640,  # Kích thước ảnh
+    conf=0.5  # Ngưỡng confidence
+)
+
+# Hiển thị kết quả
